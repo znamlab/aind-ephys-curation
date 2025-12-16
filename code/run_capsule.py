@@ -191,12 +191,20 @@ if __name__ == "__main__":
             "SpikeInterface/UnitRefine_noise_neural_classifier"
         )
         logging.info(f"Applying noise-neural classifier from {noise_neural_classifier}")
-        noise_neuron_labels = scur.auto_label_units(
-            sorting_analyzer=analyzer,
-            repo_id=noise_neural_classifier,
-            trust_model=True,
-        )
-        noise_units = noise_neuron_labels[noise_neuron_labels['prediction'] == 'noise']
+        if noise_neural_classifier is not None:
+            noise_neuron_labels = scur.auto_label_units(
+                sorting_analyzer=analyzer,
+                repo_id=noise_neural_classifier,
+                trust_model=True,
+            )
+            noise_units = noise_neuron_labels[noise_neuron_labels['prediction'] == 'noise']
+        else:
+            logging.info("Skipping noise-neural classifier (not provided).")
+            # assume all are neural if skipping
+            noise_neuron_labels = pd.DataFrame(index=analyzer.unit_ids)
+            noise_neuron_labels['prediction'] = 'neural'
+            noise_neuron_labels['probability'] = 1.0
+            noise_units = noise_neuron_labels[noise_neuron_labels['prediction'] == 'noise']
 
         # 2. apply the sua/mua classification and aggregate results
         if len(analyzer.unit_ids) > len(noise_units):
@@ -207,11 +215,17 @@ if __name__ == "__main__":
             logging.info(f"Applying sua-mua classifier from {sua_mua_classifier}")
 
             analyzer_neural = analyzer.remove_units(noise_units.index)
-            sua_mua_labels = scur.auto_label_units(
-                sorting_analyzer=analyzer_neural,
-                repo_id=sua_mua_classifier,
-                trust_model=True,
-            )
+            if sua_mua_classifier is not None:
+                sua_mua_labels = scur.auto_label_units(
+                    sorting_analyzer=analyzer_neural,
+                    repo_id=sua_mua_classifier,
+                    trust_model=True,
+                )
+            else:
+                logging.info("Skipping sua-mua classifier (not provided).")
+                sua_mua_labels = pd.DataFrame(index=analyzer_neural.unit_ids)
+                sua_mua_labels['prediction'] = 'unsorted'
+                sua_mua_labels['probability'] = 0.0
             all_labels = pd.concat([sua_mua_labels, noise_units]).sort_index()
         else:
             all_labels = noise_units
